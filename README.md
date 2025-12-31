@@ -385,10 +385,10 @@ TaskGateSDK.shared.onTaskReceived = { taskInfo in
 
 #### `notifyReady()`
 
-Signal that your app is ready. This does two things:
+Signal that your app is ready. This **delivers the stored task** to your `onTaskReceived` callback / delegate.
 
-1. **Delivers the stored task** to your `onTaskReceived` callback / delegate
-2. **Signals TaskGate** to dismiss the redirect screen
+**Important:** TaskGate stays in background - it does NOT come to foreground on `notifyReady()`.
+TaskGate only comes back when you call `reportCompletion()`.
 
 ```swift
 TaskGateSDK.shared.notifyReady()

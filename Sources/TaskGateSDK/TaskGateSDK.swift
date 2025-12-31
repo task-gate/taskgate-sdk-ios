@@ -157,13 +157,13 @@ import UIKit
         return true
     }
     
-    /// Notify TaskGate that the app is ready (cold boot complete)
+    /// Notify that the app is ready and deliver the pending task.
     ///
     /// Call this when your task UI is ready to be displayed.
     ///
-    /// This will:
-    /// 1. Deliver the pending task info to your delegate/callback via `didReceiveTask`
-    /// 2. Signal TaskGate to dismiss the redirect screen
+    /// This will deliver the pending task info to your delegate/callback via `didReceiveTask`.
+    /// Note: This does NOT signal TaskGate - TaskGate stays in background until
+    /// you call reportCompletion().
     @objc public func notifyReady() {
         guard let sessionId = currentSessionId else {
             print("[TaskGateSDK] No active session - cannot notify ready")
@@ -185,20 +185,12 @@ import UIKit
             print("[TaskGateSDK] [STEP 3] No pending task to deliver")
         }
         
-        print("[TaskGateSDK] Notifying TaskGate: app ready (session=\(sessionId))")
+        print("[TaskGateSDK] [STEP 5] Task delivered. Partner app should now show task UI.")
+        print("[TaskGateSDK] [STEP 5] TaskGate stays in background until reportCompletion() is called.")
         
-        // Signal TaskGate to dismiss redirect screen
-        var components = URLComponents()
-        components.scheme = taskgateScheme
-        components.host = "partner-ready"
-        components.queryItems = [
-            URLQueryItem(name: "session_id", value: sessionId),
-            URLQueryItem(name: "provider_id", value: providerId)
-        ]
-        
-        if let url = components.url {
-            launchURL(url)
-        }
+        // Note: We intentionally do NOT signal TaskGate here.
+        // TaskGate will stay in background with the redirect screen.
+        // When the user completes the task, reportCompletion() will bring TaskGate back.
     }
     
     /// Report task completion to TaskGate
