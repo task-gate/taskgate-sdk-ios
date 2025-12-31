@@ -33,6 +33,7 @@ import UIKit
     private var currentSessionId: String?
     private var callbackUrl: String?
     private var currentTaskId: String?
+    private var pendingTaskInfo: TaskInfo?
     
     /// Task completion status
     @objc public enum CompletionStatus: Int, CustomStringConvertible {
@@ -134,13 +135,13 @@ import UIKit
         self.currentSessionId = sessionId
         self.callbackUrl = callbackUrl
         
-        print("[TaskGateSDK] Received task request: taskId=\(taskId), sessionId=\(sessionId)")
+        print("[TaskGateSDK] [STEP 1] handleURL() - Received deep link: taskId=\(taskId), sessionId=\(sessionId)")
         
         // Collect additional params
         let reservedKeys = Set(["task_id", "callback_url", "session_id", "app_name"])
         let additionalParams = params.filter { !reservedKeys.contains($0.key) }
         
-        // Create task info
+        // Store task info - will be delivered when notifyReady() is called
         let taskInfo = TaskInfo(
             taskId: taskId,
             sessionId: sessionId,
@@ -149,25 +150,44 @@ import UIKit
             additionalParams: additionalParams
         )
         
-        // Notify delegate/callback
-        delegate?.taskGate(self, didReceiveTask: taskInfo)
-        delegate?.taskGate?(self, didRequestTaskId: taskId, params: additionalParams)
-        onTaskReceived?(taskInfo)
+        pendingTaskInfo = taskInfo
+        print("[TaskGateSDK] [STEP 2] handleURL() - Task STORED in pendingTaskInfo. NOT delivered yet.")
+        print("[TaskGateSDK] [STEP 2] Waiting for notifyReady() to be called...")
         
         return true
     }
     
     /// Notify TaskGate that the app is ready (cold boot complete)
     ///
-    /// Call this when your task UI is ready to be displayed
+    /// Call this when your task UI is ready to be displayed.
+    ///
+    /// This will:
+    /// 1. Deliver the pending task info to your delegate/callback via `didReceiveTask`
+    /// 2. Signal TaskGate to dismiss the redirect screen
     @objc public func notifyReady() {
         guard let sessionId = currentSessionId else {
             print("[TaskGateSDK] No active session - cannot notify ready")
             return
         }
         
+        print("[TaskGateSDK] [STEP 3] notifyReady() called - App says it's ready")
+        
+        // Deliver pending task to delegate/callback
+        if let taskInfo = pendingTaskInfo {
+            print("[TaskGateSDK] [STEP 4] NOW delivering task to delegate/callback: taskId=\(taskInfo.taskId)")
+            print("[TaskGateSDK] [STEP 4] Calling onTaskReceived / didReceiveTask NOW (after notifyReady)")
+            delegate?.taskGate(self, didReceiveTask: taskInfo)
+            delegate?.taskGate?(self, didRequestTaskId: taskInfo.taskId, params: taskInfo.additionalParams)
+            onTaskReceived?(taskInfo)
+            pendingTaskInfo = nil
+            print("[TaskGateSDK] [STEP 4] onTaskReceived / didReceiveTask completed")
+        } else {
+            print("[TaskGateSDK] [STEP 3] No pending task to deliver")
+        }
+        
         print("[TaskGateSDK] Notifying TaskGate: app ready (session=\(sessionId))")
         
+        // Signal TaskGate to dismiss redirect screen
         var components = URLComponents()
         components.scheme = taskgateScheme
         components.host = "partner-ready"
@@ -256,6 +276,7 @@ import UIKit
         currentSessionId = nil
         currentTaskId = nil
         callbackUrl = nil
+        pendingTaskInfo = nil
     }
     
     private func generateSessionId() -> String {

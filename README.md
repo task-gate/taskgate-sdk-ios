@@ -55,6 +55,42 @@ Official iOS SDK for TaskGate partner integration. Enable your app to provide mi
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Understanding the Flow: Cold Boot Handling
+
+The SDK is designed for **cold boot scenarios** where your app may take time to initialize:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     TIMELINE OF EVENTS                           │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Deep link arrives                                            │
+│     └── handleURL()                                              │
+│     └── SDK STORES task info internally (does NOT call callback)│
+│     └── Returns true (URL was handled)                           │
+│                                                                  │
+│  2. Your app initializes                                         │
+│     └── Load UI, initialize services, etc.                       │
+│     └── Task info is safely stored, waiting...                   │
+│                                                                  │
+│  3. App is ready                                                 │
+│     └── You call notifyReady()                                   │
+│     └── SDK NOW delivers task via onTaskReceived / delegate      │
+│     └── SDK signals TaskGate to dismiss redirect screen          │
+│                                                                  │
+│  4. User completes task                                          │
+│     └── You call reportCompletion()                              │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Why this matters:**
+
+- ✅ Your app can fully initialize before receiving the task
+- ✅ No race condition between deep link and app startup
+- ✅ `onTaskReceived` / `didReceiveTask` is guaranteed to fire only when you're ready
+- ✅ TaskGate knows exactly when to dismiss its redirect screen
+
 ### You DON'T Need
 
 ❌ **No router/navigation setup for TaskGate paths:**
@@ -149,16 +185,29 @@ import TaskGateSDK
 
 @main
 struct YourApp: App {
+    @State private var isReady = false
+
     init() {
         // Initialize with your provider ID
         TaskGateSDK.shared.initialize(providerId: "your_provider_id")
+
+        // Set up task handler
+        TaskGateSDK.shared.onTaskReceived = { taskInfo in
+            // This is called AFTER notifyReady() - app is guaranteed ready
+            handleTask(taskInfo)
+        }
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .onOpenURL { url in
+                    // Stores task internally (doesn't deliver yet)
                     TaskGateSDK.shared.handleURL(url)
+                }
+                .onAppear {
+                    // UI is ready - trigger task delivery
+                    TaskGateSDK.shared.notifyReady()
                 }
         }
     }
@@ -229,14 +278,19 @@ class TaskViewController: UIViewController {
 
         // Set up task handler
         TaskGateSDK.shared.onTaskReceived = { [weak self] taskInfo in
-            self?.handleTask(taskInfo)
+            // Called AFTER notifyReady() - app is guaranteed ready
+            self?.displayTask(taskInfo)
         }
     }
 
-    func handleTask(_ taskInfo: TaskGateSDK.TaskInfo) {
-        // Your app is loaded, signal ready
-        TaskGateSDK.shared.notifyReady()
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
 
+        // UI is ready - trigger task delivery
+        TaskGateSDK.shared.notifyReady()
+    }
+
+    func displayTask(_ taskInfo: TaskGateSDK.TaskInfo) {
         // Display task based on taskId
         switch taskInfo.taskId {
         case "breathing_30s":
@@ -293,7 +347,7 @@ TaskGateSDK.shared.initialize(providerId: "your_provider_id")
 
 #### `handleURL(_:)`
 
-Parse incoming TaskGate requests.
+Parse and **store** incoming TaskGate request. Task will be delivered when `notifyReady()` is called.
 
 ```swift
 TaskGateSDK.shared.handleURL(url)
@@ -304,6 +358,8 @@ TaskGateSDK.shared.handleURL(url)
 - `url`: URL - The URL received from `onOpenURL`
 
 **When to call:** When your app receives a URL (SwiftUI `onOpenURL` or UIKit `application(_:open:options:)`)
+
+**Note:** This method only stores the task. Call `notifyReady()` when your app is ready to receive it.
 
 ---
 
@@ -329,15 +385,18 @@ TaskGateSDK.shared.onTaskReceived = { taskInfo in
 
 #### `notifyReady()`
 
-Signal that your app is ready to display the task.
+Signal that your app is ready. This does two things:
+
+1. **Delivers the stored task** to your `onTaskReceived` callback / delegate
+2. **Signals TaskGate** to dismiss the redirect screen
 
 ```swift
 TaskGateSDK.shared.notifyReady()
 ```
 
-**When to call:** After your UI is loaded and ready to show the task
+**When to call:** After your UI is loaded and ready to receive and display the task
 
-**Important:** Call this AFTER receiving the task, when your app has completed cold boot and UI is ready.
+**Important:** `onTaskReceived` / `didReceiveTask` will NOT fire until you call `notifyReady()`
 
 ---
 
