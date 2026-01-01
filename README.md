@@ -18,6 +18,12 @@ TaskGate helps users break phone addiction by requiring them to complete a mindf
 
 This creates a **win-win**: users build better habits, and your app gains engaged users who are primed for mindful activities.
 
+<!-- Demo video placeholder:
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/YOUR-VIDEO-ID.mp4" width="300" />
+</p>
+-->
+
 ---
 
 ## Full Integration Guide
@@ -319,14 +325,18 @@ class TaskViewController: UIViewController {
 
 ## API Reference
 
-| Method                    | Description                                      |
+| Method / Property         | Description                                      |
 | ------------------------- | ------------------------------------------------ |
 | `initialize(providerId:)` | Initialize SDK (call in AppDelegate or App init) |
 | `handleURL(_:)`           | Parse deep link, returns true if TaskGate link   |
 | `setTaskCallback(_:)`     | Set callback for task notifications              |
+| `onTaskReceived`          | Closure property for task notifications          |
 | `getPendingTask()`        | Returns `TaskInfo?` (nil = normal launch)        |
 | `reportCompletion(_:)`    | Report result and redirect back to TaskGate      |
 | `cancelTask()`            | Shorthand for `reportCompletion(.cancelled)`     |
+| `currentSession`          | Current session ID if task is active (`String?`) |
+| `currentTask`             | Current task ID if task is active (`String?`)    |
+| `hasActiveSession`        | Returns `true` if a task session is active       |
 
 ### TaskInfo
 

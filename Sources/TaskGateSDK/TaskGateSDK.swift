@@ -221,9 +221,15 @@ import UIKit
     ///
     /// Returns the pending task if one exists, nil otherwise.
     /// This is useful for checking on cold start if a task was received.
+    /// The task persists until `reportCompletion()` is called.
     ///
     /// - Returns: TaskInfo if there's a pending task, nil otherwise
     @objc public func getPendingTask() -> TaskInfo? {
+        if let task = pendingTaskInfo {
+            print("[TaskGateSDK] getPendingTask() -> taskId=\(task.taskId)")
+        } else {
+            print("[TaskGateSDK] getPendingTask() -> nil (no pending task)")
+        }
         return pendingTaskInfo
     }
     
@@ -232,10 +238,19 @@ import UIKit
     /// Alternative to setting `onTaskReceived` property directly.
     /// Matches Android SDK's `setTaskCallback()` method.
     ///
+    /// If a task is already pending (received before callback was set),
+    /// the callback will be invoked immediately with that task.
+    ///
     /// - Parameter callback: Closure called when a task is received
     public func setTaskCallback(_ callback: ((TaskInfo) -> Void)?) {
         self.onTaskReceived = callback
         print("[TaskGateSDK] Task callback \(callback != nil ? "set" : "cleared")")
+        
+        // If there's a pending task and callback was just set, deliver it now
+        if let callback = callback, let task = pendingTaskInfo {
+            print("[TaskGateSDK] Delivering pending task to newly registered callback: \(task.taskId)")
+            callback(task)
+        }
     }
     
     // MARK: - Private Methods
