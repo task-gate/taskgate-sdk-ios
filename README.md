@@ -2,6 +2,22 @@
 
 Official iOS SDK for TaskGate partner integration. Enable your app to provide micro-tasks for TaskGate users.
 
+**[Download TaskGate on the App Store](https://apps.apple.com/app/taskgate/id6738980498)** | **[Partnership Info](https://taskgate.co/partnership)**
+
+---
+
+## How It Works
+
+TaskGate helps users break phone addiction by requiring them to complete a mindful task before accessing distracting apps.
+
+1. **User blocks distracting apps** - Instagram, TikTok, games, etc.
+2. **User tries to open a blocked app** - TaskGate intercepts the launch
+3. **TaskGate redirects to your partner app** - Your app receives a deep link with task info
+4. **User completes your micro-task** - Breathing exercise, meditation, quiz, etc.
+5. **Your app reports completion** - TaskGate unlocks the blocked app (or user stays focused)
+
+This creates a **win-win**: users build better habits, and your app gains engaged users who are primed for mindful activities.
+
 ---
 
 ## Full Integration Guide
@@ -66,19 +82,13 @@ The SDK is designed for **cold boot scenarios** where your app may take time to 
 │                                                                  │
 │  1. Deep link arrives                                            │
 │     └── handleURL()                                              │
-│     └── SDK STORES task info internally (does NOT call callback)│
+│     └── SDK parses task info and invokes callback immediately    │
 │     └── Returns true (URL was handled)                           │
 │                                                                  │
-│  2. Your app initializes                                         │
-│     └── Load UI, initialize services, etc.                       │
-│     └── Task info is safely stored, waiting...                   │
+│  2. Your callback receives task                                  │
+│     └── Show task UI to user                                     │
 │                                                                  │
-│  3. App is ready                                                 │
-│     └── You call notifyReady()                                   │
-│     └── SDK NOW delivers task via onTaskReceived / delegate      │
-│     └── SDK signals TaskGate to dismiss redirect screen          │
-│                                                                  │
-│  4. User completes task                                          │
+│  3. User completes task                                          │
 │     └── You call reportCompletion()                              │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
@@ -86,10 +96,9 @@ The SDK is designed for **cold boot scenarios** where your app may take time to 
 
 **Why this matters:**
 
-- ✅ Your app can fully initialize before receiving the task
-- ✅ No race condition between deep link and app startup
-- ✅ `onTaskReceived` / `didReceiveTask` is guaranteed to fire only when you're ready
-- ✅ TaskGate knows exactly when to dismiss its redirect screen
+- ✅ Simple integration - callback fires immediately
+- ✅ No extra steps required
+- ✅ Matches Android SDK behavior
 
 ### You DON'T Need
 
@@ -185,15 +194,12 @@ import TaskGateSDK
 
 @main
 struct YourApp: App {
-    @State private var isReady = false
-
     init() {
         // Initialize with your provider ID
         TaskGateSDK.shared.initialize(providerId: "your_provider_id")
 
-        // Set up task handler
+        // Set up task handler - callback fires immediately on handleURL
         TaskGateSDK.shared.onTaskReceived = { taskInfo in
-            // This is called AFTER notifyReady() - app is guaranteed ready
             handleTask(taskInfo)
         }
     }
@@ -202,12 +208,8 @@ struct YourApp: App {
         WindowGroup {
             ContentView()
                 .onOpenURL { url in
-                    // Stores task internally (doesn't deliver yet)
+                    // Parses URL and invokes callback immediately
                     TaskGateSDK.shared.handleURL(url)
-                }
-                .onAppear {
-                    // UI is ready - trigger task delivery
-                    TaskGateSDK.shared.notifyReady()
                 }
         }
     }
@@ -276,18 +278,10 @@ class TaskViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Set up task handler
+        // Set up task handler - callback fires immediately on handleURL
         TaskGateSDK.shared.onTaskReceived = { [weak self] taskInfo in
-            // Called AFTER notifyReady() - app is guaranteed ready
             self?.displayTask(taskInfo)
         }
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-
-        // UI is ready - trigger task delivery
-        TaskGateSDK.shared.notifyReady()
     }
 
     func displayTask(_ taskInfo: TaskGateSDK.TaskInfo) {
@@ -325,7 +319,38 @@ class TaskViewController: UIViewController {
 
 ## API Reference
 
-### Initialization
+| Method                    | Description                                      |
+| ------------------------- | ------------------------------------------------ |
+| `initialize(providerId:)` | Initialize SDK (call in AppDelegate or App init) |
+| `handleURL(_:)`           | Parse deep link, returns true if TaskGate link   |
+| `setTaskCallback(_:)`     | Set callback for task notifications              |
+| `getPendingTask()`        | Returns `TaskInfo?` (nil = normal launch)        |
+| `reportCompletion(_:)`    | Report result and redirect back to TaskGate      |
+| `cancelTask()`            | Shorthand for `reportCompletion(.cancelled)`     |
+
+### TaskInfo
+
+```swift
+class TaskInfo {
+    let taskId: String           // Task identifier (e.g., "breathing_30s")
+    let sessionId: String        // Session ID for this request
+    let callbackUrl: String      // URL to notify TaskGate
+    let appName: String?         // Name of blocked app (optional)
+    let additionalParams: [String: String]  // Extra parameters
+}
+```
+
+### CompletionStatus
+
+| Status       | Description                    |
+| ------------ | ------------------------------ |
+| `.open`      | User wants to open blocked app |
+| `.focus`     | User wants to stay focused     |
+| `.cancelled` | User cancelled the task        |
+
+---
+
+### Method Details
 
 #### `initialize(providerId:)`
 
@@ -347,7 +372,7 @@ TaskGateSDK.shared.initialize(providerId: "your_provider_id")
 
 #### `handleURL(_:)`
 
-Parse and **store** incoming TaskGate request. Task will be delivered when `notifyReady()` is called.
+Parse incoming TaskGate request and invoke callback immediately.
 
 ```swift
 TaskGateSDK.shared.handleURL(url)
@@ -358,8 +383,6 @@ TaskGateSDK.shared.handleURL(url)
 - `url`: URL - The URL received from `onOpenURL`
 
 **When to call:** When your app receives a URL (SwiftUI `onOpenURL` or UIKit `application(_:open:options:)`)
-
-**Note:** This method only stores the task. Call `notifyReady()` when your app is ready to receive it.
 
 ---
 
@@ -383,20 +406,39 @@ TaskGateSDK.shared.onTaskReceived = { taskInfo in
 
 ---
 
-#### `notifyReady()`
+#### `getPendingTask()`
 
-Signal that your app is ready. This **delivers the stored task** to your `onTaskReceived` callback / delegate.
-
-**Important:** TaskGate stays in background - it does NOT come to foreground on `notifyReady()`.
-TaskGate only comes back when you call `reportCompletion()`.
+Get the pending task info (useful for cold start).
 
 ```swift
-TaskGateSDK.shared.notifyReady()
+if let task = TaskGateSDK.shared.getPendingTask() {
+    // TaskGate launch - show task screen
+    showTaskScreen(task.taskId, task.appName)
+}
 ```
 
-**When to call:** After your UI is loaded and ready to receive and display the task
+**Returns:** `TaskInfo?` - The pending task if one exists, nil otherwise
 
-**Important:** `onTaskReceived` / `didReceiveTask` will NOT fire until you call `notifyReady()`
+**When to call:** On cold start to check if the app was launched via TaskGate
+
+---
+
+#### `setTaskCallback(_:)`
+
+Set callback for warm start task notifications.
+
+```swift
+TaskGateSDK.shared.setTaskCallback { taskInfo in
+    // Handle incoming task
+    showTaskScreen(taskInfo.taskId, taskInfo.appName)
+}
+```
+
+**Parameters:**
+
+- `callback`: `((TaskInfo) -> Void)?` - Closure called when a task is received
+
+**When to call:** During app initialization
 
 ---
 
@@ -428,36 +470,6 @@ Shorthand for reporting task cancellation.
 ```swift
 TaskGateSDK.shared.cancelTask()
 // Equivalent to: reportCompletion(.cancelled)
-```
-
----
-
-### Data Types
-
-#### `TaskInfo`
-
-Contains information about the task request.
-
-```swift
-struct TaskInfo {
-    let taskId: String              // Task identifier (e.g., "breathing_30s")
-    let sessionId: String            // Session ID for this request
-    let callbackUrl: String          // URL to notify TaskGate
-    let appName: String?             // Name of blocked app (optional)
-    let additionalParams: [String: String] // Extra parameters
-}
-```
-
-#### `CompletionStatus`
-
-Task completion outcomes.
-
-```swift
-enum CompletionStatus {
-    case open      // User wants to open the blocked app
-    case focus     // User wants to stay focused
-    case cancelled // User cancelled the task
-}
 ```
 
 ---
@@ -509,9 +521,6 @@ struct ContentView: View {
         TaskGateSDK.shared.onTaskReceived = { taskInfo in
             currentTask = taskInfo
             showingTask = true
-
-            // Signal app is ready
-            TaskGateSDK.shared.notifyReady()
         }
     }
 }
@@ -577,9 +586,6 @@ class TaskViewController: UIViewController {
 
         TaskGateSDK.shared.onTaskReceived = { [weak self] taskInfo in
             self?.taskInfo = taskInfo
-
-            // Signal ready
-            TaskGateSDK.shared.notifyReady()
 
             // Update UI
             self?.displayTask(taskInfo)
@@ -688,10 +694,19 @@ To get your provider ID and register as a TaskGate partner:
 
 ---
 
+## Becoming a Partner
+
+Visit **[taskgate.co](https://taskgate.co)** to learn more about partnership opportunities.
+
+**[Contact us](https://taskgate.co/contact-us)** to register and get your `providerId`.
+
+---
+
 ## Support
 
-- **Documentation:** [Main SDK README](../../../README.md)
-- **Email:** partners@taskgate.app
+- **Website:** [taskgate.co](https://taskgate.co)
+- **Contact:** [taskgate.co/contact-us](https://taskgate.co/contact-us)
+- **Docs:** [taskgate.co/partnership](https://taskgate.co/partnership)
 - **Issues:** [GitHub Issues](https://github.com/task-gate/taskgate-sdk-ios/issues)
 
 ---
@@ -699,20 +714,6 @@ To get your provider ID and register as a TaskGate partner:
 ## License
 
 MIT License - See [LICENSE](LICENSE) file for details.
-
----
-
-## Version
-
-**Current Version:** 1.0.1
-
-**Changelog:**
-
-- 1.0.1 - Initial release
-  - Task receiving and handling
-  - Ready signal for cold boot
-  - Completion reporting
-  - URL scheme support
 
 ---
 

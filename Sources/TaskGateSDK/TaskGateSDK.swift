@@ -5,7 +5,6 @@ import UIKit
 ///
 /// Allows partner apps to:
 /// - Receive task requests from TaskGate
-/// - Signal when app is ready (cold boot complete)
 /// - Report task completion status
 ///
 /// Usage:
@@ -13,11 +12,13 @@ import UIKit
 /// // Initialize in AppDelegate
 /// TaskGateSDK.shared.initialize(providerId: "your_provider_id")
 ///
+/// // Set up task handler
+/// TaskGateSDK.shared.setTaskCallback { taskInfo in
+///     showTaskScreen(taskInfo)
+/// }
+///
 /// // Handle incoming URL in SceneDelegate or AppDelegate
 /// TaskGateSDK.shared.handleURL(url)
-///
-/// // When your app is ready to show the task
-/// TaskGateSDK.shared.notifyReady()
 ///
 /// // When task is completed
 /// TaskGateSDK.shared.reportCompletion(.open)
@@ -135,7 +136,7 @@ import UIKit
         self.currentSessionId = sessionId
         self.callbackUrl = callbackUrl
         
-        print("[TaskGateSDK] [STEP 1] handleURL() - Received deep link: taskId=\(taskId), sessionId=\(sessionId)")
+        print("[TaskGateSDK] Received deep link: taskId=\(taskId), sessionId=\(sessionId)")
         
         // Collect additional params
         let reservedKeys = Set(["task_id", "callback_url", "session_id", "app_name"])
@@ -151,46 +152,14 @@ import UIKit
         )
         
         pendingTaskInfo = taskInfo
-        print("[TaskGateSDK] [STEP 2] handleURL() - Task STORED in pendingTaskInfo. NOT delivered yet.")
-        print("[TaskGateSDK] [STEP 2] Waiting for notifyReady() to be called...")
+        print("[TaskGateSDK] Task received: \(taskId)")
+        
+        // Notify callback immediately (for warm start, like Android)
+        delegate?.taskGate(self, didReceiveTask: taskInfo)
+        delegate?.taskGate?(self, didRequestTaskId: taskInfo.taskId, params: taskInfo.additionalParams)
+        onTaskReceived?(taskInfo)
         
         return true
-    }
-    
-    /// Notify that the app is ready and deliver the pending task.
-    ///
-    /// Call this when your task UI is ready to be displayed.
-    ///
-    /// This will deliver the pending task info to your delegate/callback via `didReceiveTask`.
-    /// Note: This does NOT signal TaskGate - TaskGate stays in background until
-    /// you call reportCompletion().
-    @objc public func notifyReady() {
-        guard let sessionId = currentSessionId else {
-            print("[TaskGateSDK] No active session - cannot notify ready")
-            return
-        }
-        
-        print("[TaskGateSDK] [STEP 3] notifyReady() called - App says it's ready")
-        
-        // Deliver pending task to delegate/callback
-        if let taskInfo = pendingTaskInfo {
-            print("[TaskGateSDK] [STEP 4] NOW delivering task to delegate/callback: taskId=\(taskInfo.taskId)")
-            print("[TaskGateSDK] [STEP 4] Calling onTaskReceived / didReceiveTask NOW (after notifyReady)")
-            delegate?.taskGate(self, didReceiveTask: taskInfo)
-            delegate?.taskGate?(self, didRequestTaskId: taskInfo.taskId, params: taskInfo.additionalParams)
-            onTaskReceived?(taskInfo)
-            pendingTaskInfo = nil
-            print("[TaskGateSDK] [STEP 4] onTaskReceived / didReceiveTask completed")
-        } else {
-            print("[TaskGateSDK] [STEP 3] No pending task to deliver")
-        }
-        
-        print("[TaskGateSDK] [STEP 5] Task delivered. Partner app should now show task UI.")
-        print("[TaskGateSDK] [STEP 5] TaskGate stays in background until reportCompletion() is called.")
-        
-        // Note: We intentionally do NOT signal TaskGate here.
-        // TaskGate will stay in background with the redirect screen.
-        // When the user completes the task, reportCompletion() will bring TaskGate back.
     }
     
     /// Report task completion to TaskGate
@@ -246,6 +215,27 @@ import UIKit
     /// Check if there's an active task session
     @objc public var hasActiveSession: Bool {
         return currentSessionId != nil
+    }
+    
+    /// Get pending task info (for cold start)
+    ///
+    /// Returns the pending task if one exists, nil otherwise.
+    /// This is useful for checking on cold start if a task was received.
+    ///
+    /// - Returns: TaskInfo if there's a pending task, nil otherwise
+    @objc public func getPendingTask() -> TaskInfo? {
+        return pendingTaskInfo
+    }
+    
+    /// Set callback for task received notifications
+    ///
+    /// Alternative to setting `onTaskReceived` property directly.
+    /// Matches Android SDK's `setTaskCallback()` method.
+    ///
+    /// - Parameter callback: Closure called when a task is received
+    public func setTaskCallback(_ callback: ((TaskInfo) -> Void)?) {
+        self.onTaskReceived = callback
+        print("[TaskGateSDK] Task callback \(callback != nil ? "set" : "cleared")")
     }
     
     // MARK: - Private Methods
