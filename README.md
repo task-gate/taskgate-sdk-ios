@@ -4,6 +4,12 @@ Official iOS SDK for TaskGate partner integration. Enable your app to provide mi
 
 **[Download TaskGate on the App Store](https://apps.apple.com/app/taskgate/id6738980498)** | **[Partnership Info](https://taskgate.co/partnership)**
 
+
+![Demo](https://github.com/user-attachments/assets/cadb9e88-6062-4061-8ffa-d6f68fbffda3)
+
+▶️ **Watch full demo video:**  
+https://taskgate.co/mock/demo2.mp4
+
 ---
 
 ## How It Works
