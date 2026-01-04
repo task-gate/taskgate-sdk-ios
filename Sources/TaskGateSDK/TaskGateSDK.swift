@@ -28,8 +28,6 @@ import UIKit
     /// Shared instance
     @objc public static let shared = TaskGateSDK()
     
-    private let taskgateScheme = "taskgate"
-    
     private var providerId: String?
     private var currentSessionId: String?
     private var callbackUrl: String?
@@ -60,14 +58,12 @@ import UIKit
     @objc public class TaskInfo: NSObject {
         @objc public let taskId: String
         @objc public let sessionId: String
-        internal let callbackUrl: String
         @objc public let appName: String?
         @objc public let additionalParams: [String: String]
         
-        init(taskId: String, sessionId: String, callbackUrl: String, appName: String?, additionalParams: [String: String]) {
+        init(taskId: String, sessionId: String, appName: String?, additionalParams: [String: String]) {
             self.taskId = taskId
             self.sessionId = sessionId
-            self.callbackUrl = callbackUrl
             self.appName = appName
             self.additionalParams = additionalParams
         }
@@ -146,7 +142,6 @@ import UIKit
         let taskInfo = TaskInfo(
             taskId: taskId,
             sessionId: sessionId,
-            callbackUrl: callbackUrl,
             appName: appName,
             additionalParams: additionalParams
         )
