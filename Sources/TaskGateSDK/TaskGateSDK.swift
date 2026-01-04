@@ -60,7 +60,7 @@ import UIKit
     @objc public class TaskInfo: NSObject {
         @objc public let taskId: String
         @objc public let sessionId: String
-        @objc public let callbackUrl: String
+        internal let callbackUrl: String
         @objc public let appName: String?
         @objc public let additionalParams: [String: String]
         

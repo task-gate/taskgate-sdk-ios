@@ -4,7 +4,6 @@ Official iOS SDK for TaskGate partner integration. Enable your app to provide mi
 
 **[Download TaskGate on the App Store](https://apps.apple.com/app/taskgate/id6738980498)** | **[Partnership Info](https://taskgate.co/partnership)**
 
-
 ![Demo](https://github.com/user-attachments/assets/cadb9e88-6062-4061-8ffa-d6f68fbffda3)
 
 ▶️ **Watch full demo video:**  
@@ -74,7 +73,7 @@ This creates a **win-win**: users build better habits, and your app gains engage
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ✅ Checks if URL path contains "taskgate"                      │
-│  ✅ Parses task_id, callback_url, session_id, app_name          │
+│  ✅ Parses task_id, session_id, app_name                        │
 │  ✅ Parses additional custom parameters                         │
 │  ✅ Stores session state for completion callbacks               │
 │  ✅ Sends ready signal to TaskGate                              │
@@ -127,7 +126,7 @@ path: "/taskgate/start"           // ← Don't need this in GoRouter
 ```swift
 // NOT NEEDED - SDK does this
 let taskId = url.queryItems["task_id"]      // ← Don't need this
-let callbackUrl = url.queryItems["callback_url"]  // ← Don't need this
+let sessionId = url.queryItems["session_id"]  // ← Don't need this
 ```
 
 ---
@@ -350,7 +349,6 @@ class TaskViewController: UIViewController {
 class TaskInfo {
     let taskId: String           // Task identifier (e.g., "breathing_30s")
     let sessionId: String        // Session ID for this request
-    let callbackUrl: String      // URL to notify TaskGate
     let appName: String?         // Name of blocked app (optional)
     let additionalParams: [String: String]  // Extra parameters
 }
@@ -640,53 +638,9 @@ class TaskViewController: UIViewController {
 
 ---
 
-## URL Scheme Format
-
-Your app will receive URLs in this format:
-
-```
-yourapp://task?task_id=breathing_30s&session_id=abc123&callback=taskgate://partner-complete&app_name=Instagram
-```
-
-**Parameters:**
-
-- `task_id` - Identifier for the task to show
-- `session_id` - Unique session identifier
-- `callback` - URL to notify TaskGate of completion
-- `app_name` - Name of the blocked app (optional)
-- Additional custom parameters as needed
-
----
-
 ## Testing
 
-### Test URL
-
-You can test your integration with this URL format:
-
-```
-yourapp://task?task_id=test&session_id=test123&callback=taskgate://partner-complete
-```
-
-**Option 1: Safari**
-
-```
-# Open in Safari on simulator/device
-open "yourapp://task?task_id=test&session_id=test123&callback=taskgate://partner-complete"
-```
-
-**Option 2: Terminal (Simulator)**
-
-```bash
-xcrun simctl openurl booted "yourapp://task?task_id=test&session_id=test123&callback=taskgate://partner-complete"
-```
-
-**Option 3: Xcode**
-
-1. Product → Scheme → Edit Scheme
-2. Run → Arguments
-3. Add to "Arguments Passed On Launch"
-4. Add launch argument with custom URL
+To test your integration, use the TaskGate app or contact us for test credentials.
 
 ---
 

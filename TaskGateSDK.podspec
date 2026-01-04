@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'TaskGateSDK'
-  s.version          = '1.0.5'
+  s.version          = '1.0.6'
   s.summary          = 'Official TaskGate Partner SDK for iOS'
   s.description      = <<-DESC
 Enable your app to provide micro-tasks for TaskGate users. When a user tries to open
